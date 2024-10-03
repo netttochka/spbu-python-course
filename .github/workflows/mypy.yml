@@ -36,6 +36,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run pytest
+      - name: Run mypy
         run: |
-          python ./scripts/run_tests.py
+          mypy project/ tests/
