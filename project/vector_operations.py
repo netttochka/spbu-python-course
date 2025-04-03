@@ -1,7 +1,7 @@
 from math import sqrt, acos, pi
 
 
-def vector_multiplication(vector_1: list[int], vector_2: list[int]) -> int:
+def vector_multiplication(vector_1: list[int], vector_2: list[int]) -> int | None:
     """Calculates the dot product of two vectors.
 
     Args:
