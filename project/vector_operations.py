@@ -1,7 +1,7 @@
 from math import sqrt, acos, pi
 
 
-def vector_multiplication(vector_1: list[int], vector_2: list[int]) -> list[int]:
+def vector_multiplication(vector_1: list[int], vector_2: list[int]) -> int:
     """Calculates the dot product of two vectors.
 
     Args:
@@ -38,7 +38,7 @@ def vector_length(vector_1: list[int]) -> int:
     return int(sqrt(s))
 
 
-def vector_angle(vector_1: list[int], vector_2: list[int]) -> float:
+def vector_angle(vector_1: list[int], vector_2: list[int]) -> float | None:
     """Calculates the angle between two vectors in degrees.
 
     Args:

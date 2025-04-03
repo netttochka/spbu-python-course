@@ -1,7 +1,7 @@
 from math import sqrt, acos, pi
 
 
-def matrix_sum(matrix_1: list[list], matrix_2: list[list]) -> list[list]:
+def matrix_sum(matrix_1: list[list], matrix_2: list[list]) -> list[list] | None:
     """Calculates the sum of two matrices.
 
     Args:
@@ -24,7 +24,7 @@ def matrix_sum(matrix_1: list[list], matrix_2: list[list]) -> list[list]:
         return sum_matrix
 
 
-def matrix_mult(matrix_1: list[list], matrix_2: list[list]) -> list[list]:
+def matrix_mult(matrix_1: list[list], matrix_2: list[list]) -> list[list] | None:
     """Calculates the product of two matrices.
 
     Args:
