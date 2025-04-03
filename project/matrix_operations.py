@@ -1,7 +1,7 @@
 from math import sqrt, acos, pi
 
 
-def matrix_sum(matrix_1: list[list], matrix_2: list[list]):
+def matrix_sum(matrix_1: list[list], matrix_2: list[list]) -> list[list]:
     """Calculates the sum of two matrices.
 
     Args:
@@ -24,7 +24,7 @@ def matrix_sum(matrix_1: list[list], matrix_2: list[list]):
         return sum_matrix
 
 
-def matrix_multi(matrix_1: list[list], matrix_2: list[list]):
+def matrix_mult(matrix_1: list[list], matrix_2: list[list]) -> list[list]:
     """Calculates the product of two matrices.
 
     Args:
@@ -51,7 +51,7 @@ def matrix_multi(matrix_1: list[list], matrix_2: list[list]):
         return product_matrix
 
 
-def matrix_transposition(matrix_1: list[list]):
+def matrix_transposition(matrix_1: list[list]) -> list[list]:
     """Calculates the transpose of a matrix.
 
     Args:
