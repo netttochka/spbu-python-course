@@ -9,7 +9,8 @@ def test_1_matrix_sum():
 
 def test_2_matrix_sum():
     assert (
-        matrix_operations.matrix_sum([[1, 2], [2, 3, 5]], [[0, 1, 2], [5, 6, 8]]) is None
+        matrix_operations.matrix_sum([[1, 2], [2, 3, 5]], [[0, 1, 2], [5, 6, 8]])
+        is None
     )
 
 
