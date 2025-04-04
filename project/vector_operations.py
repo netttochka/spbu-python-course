@@ -56,8 +56,10 @@ def vector_angle(vector_1: list[int], vector_2: list[int]) -> float | None:
     elif len(vector_1) == 0 and len(vector_2) == 0:
         return None
     else:
-        cos_a_b = vector_multiplication(vector_1, vector_2) / (
-            vector_length(vector_1) * vector_length(vector_2)
-        )
-        ac_a_b = acos(cos_a_b) * 180 / pi
-        return round(ac_a_b)
+        vec_mult = vector_multiplication(vector_1, vector_2)
+        if vec_mult != None:
+            cos_a_b = vec_mult / (vector_length(vector_1) * vector_length(vector_2))
+            ac_a_b = acos(cos_a_b) * 180 / pi
+            return round(ac_a_b)
+        else:
+            return None
