@@ -15,20 +15,20 @@ def test_2_matrix_sum():
 
 
 def test_1_matrix_multi():
-    assert matrix_operations.matrix_multi([[1, 2], [2, 1]], [[0, 3], [5, -1]]) == [
+    assert matrix_operations.matrix_mult([[1, 2], [2, 1]], [[0, 3], [5, -1]]) == [
         [10, 1],
         [5, 5],
     ]
 
 
 def test_2_matrix_multi():
-    assert matrix_operations.matrix_multi(
+    assert matrix_operations.matrix_mult(
         [[-1, 31], [0, -5], [3, 0]], [[0, 3, 0], [5, -1, 0]]
     ) == [[155, -34, 0], [-25, 5, 0], [0, 9, 0]]
 
 
 def test_3_matrix_multi():
-    assert matrix_operations.matrix_multi([[-1], [0], [3]], [[0], [5]]) is None
+    assert matrix_operations.matrix_mult([[-1], [0], [3]], [[0], [5]]) is None
 
 
 def test_1_matrix_transposition():
