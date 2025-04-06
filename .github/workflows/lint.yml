@@ -27,31 +27,15 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Set up Git repository
-        uses: actions/checkout@v2
-
-      # Setup Python with version from matrix
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      # Install requirements
-      - name: Install requirements
-
-        # Runs command-line programs using the operating system's shell
+          python-version: '3.x'
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip wheel setuptools
-          python -m pip install -r requirements.txt
-          python -m pip list
-
-      # Install pre-commit from .pre-commit-config.yaml
-      - name: Install pre-commit
-        run: |
-          pre-commit install
-
-      # Run pre-commit on all the files in the repo
-      - name: Run pre-commit
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Pre-commit
         run: |
           pre-commit run --all-files --color always --verbose --show-diff-on-failure
