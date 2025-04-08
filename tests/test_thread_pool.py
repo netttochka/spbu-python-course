@@ -3,8 +3,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from project.decorators.thread_pool.thread_pool import ThreadPool
-from project.decorators.thread_pool.parallel_cartesian_sum import parallel_cartesian_sum
+from project.thread_pool.thread_pool import ThreadPool
+from project.thread_pool.parallel_cartesian_sum import parallel_cartesian_sum
 import time
 import pytest
 import threading
