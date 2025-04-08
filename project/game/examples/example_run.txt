@@ -1,0 +1,55 @@
+
+--- Initial Game State ---
+Bot1: Initial Balance = 1000, Initial Bet = 100.0
+Bot2: Initial Balance = 1000, Initial Bet = 200.0
+Bot3: Initial Balance = 1000, Initial Bet = 100.0
+
+--- Round 1 ---
+Bot1 draws 4 of Clubs
+Bot2 draws 7 of Diamonds
+Bot3 draws 12 of Diamonds
+
+Current game state:
+Bot1 (ConservativeBot) score: 4 | Hand: [4 of Clubs]
+Bot2 (AggressiveBot) score: 7 | Hand: [7 of Diamonds]
+Bot3 (MixedBot) score: 10 | Hand: [12 of Diamonds]
+
+
+--- Round 2 ---
+Bot1 draws 13 of Diamonds
+Bot2 draws 13 of Hearts
+Bot3 draws 6 of Diamonds
+
+Current game state:
+Bot1 (ConservativeBot) score: 14 | Hand: [4 of Clubs, 13 of Diamonds]
+Bot2 (AggressiveBot) score: 17 | Hand: [7 of Diamonds, 13 of Hearts]
+Bot3 (MixedBot) score: 16 | Hand: [12 of Diamonds, 6 of Diamonds]
+
+
+--- Round 3 ---
+Bot1 draws 11 of Hearts
+Bot2 draws 2 of Clubs
+Bot3 draws 9 of Clubs
+
+Current game state:
+Bot1 (ConservativeBot) score: 24 | Hand: [4 of Clubs, 13 of Diamonds, 11 of Hearts]
+Bot2 (AggressiveBot) score: 19 | Hand: [7 of Diamonds, 13 of Hearts, 2 of Clubs]
+Bot3 (MixedBot) score: 25 | Hand: [12 of Diamonds, 6 of Diamonds, 9 of Clubs]
+
+
+--- Round 4 ---
+Bot1 stays with score 24 (bust)
+Bot2 stays with score 19
+Bot3 stays with score 25 (bust)
+
+Current game state:
+Bot1 (ConservativeBot) score: 24 | Hand: [4 of Clubs, 13 of Diamonds, 11 of Hearts]
+Bot2 (AggressiveBot) score: 19 | Hand: [7 of Diamonds, 13 of Hearts, 2 of Clubs]
+Bot3 (MixedBot) score: 25 | Hand: [12 of Diamonds, 6 of Diamonds, 9 of Clubs]
+
+Game over: Bot2 wins as the last remaining bot!
+
+--- Final Game State ---
+Bot1: Final Balance = 900.0
+Bot2: Final Balance = 1200.0
+Bot3: Final Balance = 900.0
