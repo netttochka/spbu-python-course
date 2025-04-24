@@ -1,68 +1,108 @@
+# project/game/src/card.py
+"""
+Card & Deck primitives for the blackjack-like game engine.
+"""
+
+from __future__ import annotations
+
 import random
-from typing import Optional, List
+from dataclasses import dataclass
+from typing import ClassVar, List, Optional, Sequence
 
 
+# ---------------------------------------------------------------------------#
+#  Card
+# ---------------------------------------------------------------------------#
+
+
+@dataclass(slots=True, frozen=True)
 class Card:
     """
-    Represents a playing card with a suit and rank.
+    Immutable playing card.
 
-    Attributes:
-        suit (str): The suit of the card (e.g., Hearts, Diamonds).
-        rank (int): The rank of the card (1-13, where 1 is Ace, 11 is Jack, 12 is Queen, 13 is King).
-        value (int): The value of the card for the game, where ranks higher than 10 are valued at 10.
+    * rank* — 1 … 13  (Ace=1, Jack=11, Queen=12, King=13)
+    * suit* — one of ``"Hearts" | "Diamonds" | "Clubs" | "Spades"``
+
+    ``value`` свойство автоматически приравнивает все картинки к 10,
+    что соответствует правилам блэкджека.
     """
 
-    def __init__(self, suit: str, rank: int) -> None:
-        """
-        Initializes a Card instance.
+    suit: str
+    rank: int
 
-        Args:
-            suit (str): The suit of the card.
-            rank (int): The rank of the card.
-        """
-        self._suit = suit
-        self._rank = rank
-        self._value = min(rank, 10)  # Cards with rank > 10 are valued as 10
+    # Face-card map для красивого вывода
+    _RANK_NAMES: ClassVar[dict[int, str]] = {
+        1: "Ace",
+        11: "Jack",
+        12: "Queen",
+        13: "King",
+    }
 
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the Card.
+    @property
+    def value(self) -> int:  # noqa: D401 – already explicit
+        """Numeric value used when подсчитывается очки руки."""
+        return min(self.rank, 10)
 
-        Returns:
-            str: A string in the format "<rank> of <suit>".
-        """
-        return f"{self._rank} of {self._suit}"
+    # ------------------------------------------------------------------ dunder
+
+    def __str__(self) -> str:  # print(card) → 'Ace of Hearts'
+        name = self._RANK_NAMES.get(self.rank, str(self.rank))
+        return f"{name} of {self.suit}"
+
+    def __repr__(self) -> str:  # repr(card) → 'Card("Hearts", 1)'
+        return f"{type(self).__name__}({self.suit!r}, {self.rank})"
+
+
+# ---------------------------------------------------------------------------#
+#  Deck
+# ---------------------------------------------------------------------------#
 
 
 class Deck:
     """
-    Represents a deck of playing cards.
+    Standard 52-card deck.  Поддерживает::
 
-    Attributes:
-        suits (List[str]): The list of suits in the deck.
-        ranks (List[int]): The list of ranks in the deck.
-        cards (List[Card]): The list of Card instances in the deck.
+        deck = Deck()          # авто-тасуется
+        card = deck.draw()     # достать карту (или None, если колода пуста)
+        len(deck)              # сколько карт осталось
     """
 
-    suits: List[str] = ["Hearts", "Diamonds", "Clubs", "Spades"]
-    ranks: List[int] = list(
-        range(1, 14)
-    )  # Aces (1), numbers (2-10), and face cards (11-13)
+    suits: ClassVar[Sequence[str]] = ("Hearts", "Diamonds", "Clubs", "Spades")
+    ranks: ClassVar[Sequence[int]] = range(1, 14)  # 1…13
 
-    def __init__(self) -> None:
+    # ------------------------------------------------------------------ init
+
+    def __init__(self, *, rng: Optional[random.Random] = None) -> None:
         """
-        Initializes a Deck instance, creates a full deck of cards, and shuffles them.
+        Создаёт полную колоду и перемешивает её.
+        *rng* — опциональный генератор случайных чисел (удобно для тестов).
         """
         self._cards: List[Card] = [
-            Card(suit, rank) for suit in Deck.suits for rank in Deck.ranks
+            Card(suit, rank) for suit in self.suits for rank in self.ranks
         ]
-        random.shuffle(self._cards)
+        (rng or random).shuffle(self._cards)
 
-    def _draw_card(self) -> Optional[Card]:
-        """
-        Draws a card from the deck.
+    # ------------------------------------------------------------------ API
 
-        Returns:
-            Optional[Card]: The drawn Card, or None if the deck is empty.
-        """
+    def draw(self) -> Optional[Card]:
+        """Возвращает верхнюю карту или ``None``, если колода пуста."""
         return self._cards.pop() if self._cards else None
+
+    # alias для обратной совместимости с старым кодом/игровым движком
+    _draw_card = draw
+
+    # ------------------------------------------------------------------ helpers & dunder
+
+    def shuffle(self, *, rng: Optional[random.Random] = None) -> None:
+        """Перетасовать оставшиеся карты."""
+        (rng or random).shuffle(self._cards)
+
+    def __len__(self) -> int:  # len(deck)
+        return len(self._cards)
+
+    def __bool__(self) -> bool:  # bool(deck) → есть ли ещё карты
+        return bool(self._cards)
+
+    def __iter__(self):
+        """Итерация по оставшимся картам без вынимания."""
+        return iter(self._cards.copy())

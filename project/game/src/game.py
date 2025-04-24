@@ -1,257 +1,303 @@
+import logging
+from typing import List, Optional, Protocol, runtime_checkable, Iterable
+
 from project.game.src.card import Deck
-from project.game.src.bot import Bot
-from typing import List, Optional
+from project.game.src.bot import Bot  # type: ignore  # kept for runtime import
+
+__all__ = ["Game", "GameMeta"]
+
+
+@runtime_checkable
+class BotProtocol(Protocol):  # pragma: no cover
+    """Structural typing interface for a bot.
+
+    A minimal subset required by the *Game* engine. Any object that satisfies
+    these attributes/methods can participate in the game, which makes the code
+    test‑friendly and mypy‑friendly at the same time.
+    """
+
+    # Public attrs
+    name: str
+    balance: int
+    current_bet: int
+    is_active: bool
+
+    # Complex attrs
+    hand: "HandProtocol"  # quoted to avoid a hard dependency
+
+    # Behaviour
+    def decide(self) -> bool:  # noqa: D401 – already explicit in name
+        """Return *True* if the bot wants another card, *False* otherwise."""
+
+
+class HandProtocol(Protocol):  # pragma: no cover – same idea as *BotProtocol*
+    def calculate_score(self, target: int) -> int:
+        ...
+
+    def add_card(self, card: object) -> None:
+        ...
+
+    @property
+    def cards(self) -> List[object]:
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Utility helpers – hide the “ugly” underscore access if a public attribute is
+# not provided by the concrete Bot implementation. This keeps the *Game* class
+# clean and backward‑compatible with legacy bots that still expose their internals.
+# ---------------------------------------------------------------------------
+
+
+def _safe_get(bot: BotProtocol, public: str) -> object:  # noqa: ANN001 – generic
+    """Return *bot.public* if present, otherwise fall back to *bot._public*."""
+
+    if hasattr(bot, public):
+        return getattr(bot, public)
+    return getattr(bot, f"_{public}")
+
+
+def _safe_set(bot: BotProtocol, public: str, value: object) -> None:  # noqa: ANN001
+    """Set *bot.public* (or its hidden counterpart) to *value*."""
+
+    if hasattr(bot, public):
+        setattr(bot, public, value)
+    else:
+        setattr(bot, f"_{public}", value)
+
+
+# ---------------------------------------------------------------------------
+#  Game engine
+# ---------------------------------------------------------------------------
 
 
 class GameMeta(type):
-    """
-    Metaclass for the Game class to set default attributes.
-    """
+    """Metaclass that injects *target_score* at class‑creation time."""
 
-    def __new__(cls, name: str, bases: tuple, attrs: dict) -> type:
-        """
-        Creates a new Game class with default attributes.
-
-        Args:
-            cls (type): The metaclass itself.
-            name (str): The name of the new class.
-            bases (tuple): The base classes.
-            attrs (dict): The class attributes.
-
-        Returns:
-            type: The newly created class.
-        """
-        attrs["target_score"] = attrs.get("target_score", 21)  # Set default value
-        return super().__new__(cls, name, bases, attrs)
+    def __new__(  # noqa: D401 – docstring kept from the original for clarity
+        cls, name: str, bases: tuple[type, ...], attrs: dict[str, object]
+    ) -> "Game":
+        attrs.setdefault("target_score", 21)
+        return super().__new__(cls, name, bases, attrs)  # type: ignore[misc]
 
 
 class Game(metaclass=GameMeta):
-    """
-    Represents a game that involves a deck of cards and bots.
+    """Black‑jack‑like card game for several autonomous bots.
 
-    Attributes:
-        deck (Deck): The deck of cards used in the game.
-        bots (List[Bot]): The list of bots participating in the game.
-        max_steps (int): The maximum number of rounds to play.
-        current_step (int): The current round number.
-        output_file (Optional[str]): The file to log game output.
-        target_score (int): The target score to reach to win the game.
+    The public *play()* method drives the whole life‑cycle. Detailed state is
+    surfaced through a standard *logging.Logger* which can be redirected to a
+    file via *output_file* or controlled globally by the application.
     """
 
-    target_score: int
+    # ---------------------------------------------------------------------
+    # Construction helpers
+    # ---------------------------------------------------------------------
 
     def __init__(
         self,
-        bots: List,
+        bots: List[BotProtocol],
         max_steps: int = 10,
         output_file: Optional[str] = None,
         target_score: Optional[int] = None,
     ) -> None:
-        """
-        Initializes a Game instance.
+        if max_steps <= 0:
+            raise ValueError("max_steps must be a positive integer > 0")
 
-        Args:
-            bots (List[Bot]): A list of bots participating in the game.
-            max_steps (int, optional): Maximum number of rounds to play. Defaults to 10.
-            output_file (Optional[str], optional): File to log output. Defaults to None.
-            target_score (Optional[int], optional): The target score to win. Defaults to the class default.
-        """
-        self._deck = Deck()
-        self._bots = bots
-        self._max_steps = max_steps
-        self._current_step = 0
-        self._output_file = output_file
-        self.target_score = (
-            target_score if target_score is not None else self.target_score
-        )
+        self._deck: Deck = Deck()
+        self._bots: List[BotProtocol] = bots
+        self._max_steps: int = max_steps
+        self._current_step: int = 0
 
-    def _log(self, message: str) -> None:
-        """
-        Logs a message to the output file and prints it.
+        # Score can be customised per‑instance but always falls back to the
+        # default injected by *GameMeta*.
+        self.target_score: int = target_score or type(self).target_score  # type: ignore[attr-defined]
 
-        Args:
-            message (str): The message to log.
-        """
-        if self._output_file:
-            with open(self._output_file, "a") as f:
-                f.write(message + "\n")
-        print(message)
+        # -----------------------------------------------------------------
+        # Logging configuration – per‑instance logger so different games can
+        # be isolated if needed.
+        # -----------------------------------------------------------------
+        self._logger = logging.getLogger(f"{__name__}.{id(self):x}")
+        self._logger.setLevel(logging.INFO)
+        handler: logging.Handler
+        if output_file:
+            handler = logging.FileHandler(output_file, mode="w", encoding="utf‑8")
+        else:
+            handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        self._logger.addHandler(handler)
+        # Keep a reference so that we can close the file when the game ends.
+        self._handler = handler
 
-    def _show_initial_state(self) -> None:
-        """
-        Logs the initial balance and current bet of each bot at the start of the game.
-        """
-        self._log("\n--- Initial Game State ---")
-        for bot in self._bots:
-            self._log(
-                f"{bot._name}: Initial Balance = {bot._balance}, Initial Bet = {bot._current_bet}"
-            )
+    # ---------------------------------------------------------------------
+    # Logging helpers
+    # ---------------------------------------------------------------------
 
-    def _show_final_state(
-        self, winner: Optional[Bot] = None, total_winnings: Optional[int] = None
-    ) -> None:
-        """
-        Logs the final balance of each bot at the end of the game. If there is a winner, logs their winnings.
+    def _log(self, message: str) -> None:  # noqa: D401 – thin wrapper
+        self._logger.info(message)
 
-        Args:
-            winner (Optional[Bot]): The winning bot, if any.
-            total_winnings (Optional[int]): The total amount won by the winner.
-        """
-        self._log("\n--- Final Game State ---")
-        for bot in self._bots:
-            self._log(f"{bot._name}: Final Balance = {bot._balance}")
+    # ---------------------------------------------------------------------
+    # Public API
+    # ---------------------------------------------------------------------
 
-        if winner and total_winnings is not None:
-            self._log(
-                f"{winner._name} wins and receives {total_winnings} as total winnings."
-            )
+    def play(self) -> None:
+        """Run the main game loop and block until the game ends."""
+        try:
+            for _ in self._rounds():
+                pass  # *self._rounds()* already does the heavy lifting.
+        finally:
+            # Always flush/close the handler so that the log file (if any) is
+            # written even in case of exceptions.
+            self._handler.close()
+            self._logger.removeHandler(self._handler)
 
-    def _show_state(self) -> None:
-        """
-        Displays the current state of the game, including scores and hands of all bots.
-        """
-        state = "\nCurrent game state:\n"
-        for bot in self._bots:
-            hand_cards = ", ".join(str(card) for card in bot._hand._cards)
-            state += f"{bot._name} ({bot.__class__.__name__}) score: {bot._hand._calculate_score(self.target_score)} | Hand: [{hand_cards}]\n"
-        self._log(state)
+    # ---------------------------------------------------------------------
+    # Internal core – everything below here is considered an implementation
+    # detail and may change without notice.
+    # ---------------------------------------------------------------------
 
-    def _play_round(self) -> None:
-        """
-        Plays a single round of the game, allowing each active bot to draw cards or stay.
-        """
-        self._log(f"\n--- Round {self._current_step + 1} ---")
-        for bot in self._bots:
-            if bot._is_active:  # Only active bots can take actions
-                if bot._hand._calculate_score(self.target_score) < self.target_score:
-                    if bot.decide():
-                        card = self._deck._draw_card()
-                        if card:
-                            bot._hand._add_card(card)
-                            self._log(f"{bot._name} draws {card}")
-                        else:
-                            self._log("Deck is empty!")
-                    else:
-                        self._log(
-                            f"{bot._name} stays with score {bot._hand._calculate_score(self.target_score)}"
-                        )
-                else:
-                    bot._is_active = False  # Bot is deactivated if score exceeds target
-                    self._log(
-                        f"{bot._name} stays with score {bot._hand._calculate_score(self.target_score)} (bust)"
-                    )
-        self._show_state()
+    def _rounds(self) -> Iterable[None]:
+        """Generator encapsulating the game flow round by round."""
 
-    def determine_winner(self) -> Optional[Bot]:
-        """
-        Determines the winner of the game based on the scores of the bots.
-
-        Returns:
-            Optional[Bot]: The winning bot, or None if no winner is found.
-        """
-        valid_bots = [
-            bot
-            for bot in self._bots
-            if bot._hand._calculate_score(self.target_score) <= self.target_score
-        ]
-        if not valid_bots:
-            self._log("All bots bust. No winner.")
-            return None
-
-        # Winning condition: if one of the bots reaches the target score
-        winner = next(
-            (
-                bot
-                for bot in valid_bots
-                if bot._hand._calculate_score(self.target_score) == self.target_score
-            ),
-            None,
-        )
-
-        # If no winner with the target score, choose the one with the highest score
-        if not winner:
-            winner = max(
-                valid_bots,
-                key=lambda bot: bot._hand._calculate_score(self.target_score),
-            )
-
-        return winner
-
-    def _distribute_pot(self, winner: Bot) -> None:
-        """
-        Distributes the total bets to the winner.
-
-        Args:
-            winner (Bot): The winning bot.
-        """
-        total_bet = sum(
-            bot._current_bet for bot in self._bots if bot != winner
-        )  # Сумма ставок всех проигравших
-        winner._balance += (
-            total_bet  # Увеличение баланса победителя на сумму ставок остальных
-        )
-
-        # Уменьшаем баланс проигравших на их ставки
-        for bot in self._bots:
-            if bot != winner:
-                bot._balance -= bot._current_bet
-
-        # Сброс всех ставок
-        for bot in self._bots:
-            bot._current_bet = 0
-
-    def _play_game(self) -> None:
-        """Plays the game for the maximum number of steps or until a winner is found."""
-        if self._output_file:
-            open(
-                self._output_file, "w"
-            ).close()  # Clear the file before starting the game
-
-        # Show initial balances and bets
         self._show_initial_state()
-
         while self._current_step < self._max_steps:
             self._play_round()
             self._current_step += 1
 
-            # Check for active bots after each round
-            active_bots = [bot for bot in self._bots if bot._is_active]
+            # ----- Termination checks -----
+            active_bots = [b for b in self._bots if _safe_get(b, "is_active")]
 
-            # Check if there is only one active bot left
+            # A. Only one bot left alive
             if len(active_bots) == 1:
                 winner = active_bots[0]
-                self._log(f"Game over: {winner._name} wins as the last remaining bot!")
-                self._distribute_pot(winner)
-                self._show_final_state(winner=winner)
-                return  # End the game
+                self._conclude(winner, reason="last remaining bot")
+                yield  # so callers can still iterate even if we finish early
+                return
 
-            # Check for a winner (reaching target score)
-            if any(
-                bot._hand._calculate_score(self.target_score) == self.target_score
-                for bot in active_bots
-            ):
-                winner = next(
-                    bot
-                    for bot in active_bots
-                    if bot._hand._calculate_score(self.target_score)
-                    == self.target_score
-                )
-                self._log(
-                    f"Game over: {winner._name} wins with {self.target_score} points!"
-                )
-                self._distribute_pot(winner)
-                self._show_final_state(winner=winner)
-                return  # End the game
-
-        # Determine the winner after all rounds are over
-        winner = self.determine_winner()
-        if winner:
-            self._log(
-                f"Game over: {winner._name} wins with a score of {winner._hand._calculate_score(self.target_score)}!"
+            # B. Someone hit the exact target
+            perfect = next(
+                (
+                    b
+                    for b in active_bots
+                    if b.hand.calculate_score(self.target_score) == self.target_score
+                ),
+                None,
             )
-            self._distribute_pot(winner)
-        else:
-            self._log("Game ended due to max steps without a winner.")
+            if perfect:
+                self._conclude(perfect, reason=f"reached {self.target_score} points")
+                yield
+                return
 
-        # Show final state regardless of the outcome
-        self._show_final_state(winner=winner)
+            yield  # Round finished, but the game continues.
+
+        # ----- Max rounds exhausted – use score heuristics to decide -----
+        self._log("Max number of rounds reached – determining winner by score …")
+        winner = self._determine_winner()
+        self._conclude(winner)
+
+    # ------------------------------------------------------------------
+    # Round helpers
+    # ------------------------------------------------------------------
+
+    def _play_round(self) -> None:
+        self._log(f"\n— Round {self._current_step + 1} —")
+        for bot in self._bots:
+            # Skip inactive players early
+            if not _safe_get(bot, "is_active"):
+                continue
+
+            score = bot.hand.calculate_score(self.target_score)
+
+            if score >= self.target_score:
+                # Bust or exact target – the bot cannot act this round
+                _safe_set(bot, "is_active", False)
+                tag = "(bust)" if score > self.target_score else "(stay)"
+                self._log(f"{bot.name} stays with score {score} {tag}")
+                continue
+
+            if bot.decide():
+                card = self._deck._draw_card()  # noqa: SLF001 – minimal change
+                if card is None:
+                    self._log("Deck is empty!")
+                    break  # Cannot draw further – end round early.
+                bot.hand.add_card(card)
+                self._log(f"{bot.name} draws {card}")
+            else:
+                self._log(f"{bot.name} stays with score {score}")
+
+        self._show_state()
+
+    # ------------------------------------------------------------------
+    # State inspection helpers
+    # ------------------------------------------------------------------
+
+    def _show_initial_state(self) -> None:
+        self._log("\n— Initial Game State —")
+        for bot in self._bots:
+            self._log(
+                f"{bot.name}: Initial Balance = {bot.balance}, Initial Bet = {bot.current_bet}"
+            )
+
+    def _show_final_state(self, winner: Optional[BotProtocol]) -> None:
+        self._log("\n— Final Game State —")
+        for bot in self._bots:
+            self._log(f"{bot.name}: Final Balance = {bot.balance}")
+        if winner is not None:
+            self._log(f"Winner: {winner.name} (Balance ⇒ {winner.balance})")
+
+    def _show_state(self) -> None:
+        state = "\nCurrent game state:"  # Single string for one log entry
+        for bot in self._bots:
+            hand_cards = ", ".join(map(str, bot.hand.cards))
+            score = bot.hand.calculate_score(self.target_score)
+            state += f"\n{bot.name} ({bot.__class__.__name__}) score: {score} | Hand: [{hand_cards}]"
+        self._log(state)
+
+    # ------------------------------------------------------------------
+    # Winner logic
+    # ------------------------------------------------------------------
+
+    def _determine_winner(self) -> Optional[BotProtocol]:
+        valid = [
+            b
+            for b in self._bots
+            if b.hand.calculate_score(self.target_score) <= self.target_score
+        ]
+        if not valid:
+            self._log("All bots bust. No winner.")
+            return None
+        perfect = next(
+            (
+                b
+                for b in valid
+                if b.hand.calculate_score(self.target_score) == self.target_score
+            ),
+            None,
+        )
+        if perfect:
+            return perfect
+        return max(valid, key=lambda b: b.hand.calculate_score(self.target_score))
+
+    # ------------------------------------------------------------------
+    # Pot handling
+    # ------------------------------------------------------------------
+
+    def _distribute_pot(self, winner: BotProtocol) -> int:
+        total_bet = sum(b.current_bet for b in self._bots if b is not winner)
+        _safe_set(winner, "balance", winner.balance + total_bet)
+        for bot in self._bots:
+            if bot is not winner:
+                _safe_set(bot, "balance", bot.balance - bot.current_bet)
+            _safe_set(bot, "current_bet", 0)
+        return total_bet
+
+    def _conclude(
+        self, winner: Optional[BotProtocol], *, reason: str | None = None
+    ) -> None:
+        if winner is None:
+            self._show_final_state(winner=None)
+            self._log("Game ended with no winner.")
+            return
+        total_winnings = self._distribute_pot(winner)
+        pretty_reason = f" – {reason}" if reason else ""
+        self._log(f"Game over: {winner.name} wins{pretty_reason}!")
+        self._show_final_state(winner)
