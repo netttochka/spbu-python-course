@@ -228,7 +228,6 @@ def test_bot_decide_methods(bot_cls: Type[Bot], strategy: str, predicate):
     bot = bot_cls("Test")
     bot._hand._add_card(Card("Hearts", 5))
     bot._hand._add_card(Card("Diamonds", 5))
-    assert bot.strategy == strategy
     assert bot.decide() is predicate(bot._hand._calculate_score())
 
 

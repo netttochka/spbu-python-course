@@ -76,9 +76,9 @@ class GameMeta(type):
 
     def __new__(  # noqa: D401 – docstring kept from the original for clarity
         cls, name: str, bases: tuple[type, ...], attrs: dict[str, object]
-    ) -> "Game":
+    ):
         attrs.setdefault("target_score", 21)
-        return super().__new__(cls, name, bases, attrs)  # type: ignore[misc]
+        return super().__new__(cls, name, bases, attrs)
 
 
 class Game(metaclass=GameMeta):
@@ -95,7 +95,7 @@ class Game(metaclass=GameMeta):
 
     def __init__(
         self,
-        bots: List[BotProtocol],
+        bots,
         max_steps: int = 10,
         output_file: Optional[str] = None,
         target_score: Optional[int] = None,
@@ -104,7 +104,7 @@ class Game(metaclass=GameMeta):
             raise ValueError("max_steps must be a positive integer > 0")
 
         self._deck: Deck = Deck()
-        self._bots: List[BotProtocol] = bots
+        self._bots = bots
         self._max_steps: int = max_steps
         self._current_step: int = 0
 
